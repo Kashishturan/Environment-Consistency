@@ -200,7 +200,43 @@ jobs:
           image-ref: ghcr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           format: table
           severity: CRITICAL,HIGH,MEDIUM
-          
+
+  # -------------------------------------------------------------------------
+  # 5. DOCKLE CIS BENCHMARK
+  # -------------------------------------------------------------------------
+  dockle-scan:
+    name: '5. Dockle CIS Benchmark'
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}/frontend' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Download image tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image-${{ github.run_id }}
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load -i /tmp/frontend-image.tar
+
+      - name: Run Dockle
+        uses: goodwithtech/dockle-action@v1
+        with:
+          image: ghcr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: json
+          output: dockle-results.json
+          exit-code: 0
+          exit-level: fatal
+
+      - name: Upload Dockle results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dockle-results-${{ github.run_id }}
+          path: dockle-results.json
   # -------------------------------------------------------------------------
   # 6. IMAGE SIZE CHECK
   # -------------------------------------------------------------------------
