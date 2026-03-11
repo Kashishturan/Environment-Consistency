@@ -20,6 +20,10 @@ on:
           - apply
           - destroy
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.environment }}
+  cancel-in-progress: true
+
 permissions:
   id-token: write   # Required for OIDC JWT
   contents: read    # Required for actions/checkout
@@ -31,6 +35,7 @@ env:
 jobs:
   # -------------------------------------------------------------------------
   # LINT & SECURITY SCAN
+  # This job always runs to ensure code quality checks are performed.
   # -------------------------------------------------------------------------
   lint-and-scan:
     name: 'Lint & Security Scan'
@@ -70,6 +75,7 @@ jobs:
 
   # -------------------------------------------------------------------------
   # TERRAFORM PLAN
+  # This job always runs after linting to generate a plan.
   # -------------------------------------------------------------------------
   terraform-plan:
     name: 'Terraform Plan'
@@ -120,6 +126,7 @@ jobs:
 
   # -------------------------------------------------------------------------
   # TERRAFORM APPLY (requires manual approval for prod)
+  # This job only runs if the 'action' input is 'apply'.
   # -------------------------------------------------------------------------
   terraform-apply:
     name: 'Terraform Apply'
@@ -165,6 +172,7 @@ jobs:
 
   # -------------------------------------------------------------------------
   # TERRAFORM DESTROY (extra safety - always requires manual approval)
+  # This job only runs if the 'action' input is 'destroy'.
   # -------------------------------------------------------------------------
   terraform-destroy:
     name: 'Terraform Destroy'
