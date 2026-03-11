@@ -1,22 +1,19 @@
 name: Terraform CI/CD
 
-# ============================================================
 # MANUAL TRIGGER ONLY - never auto-runs on push/PR
-# ============================================================
-# How to run:
-#   Actions → Terraform CI/CD → "Run workflow" button
-#   Select environment: demo (no AWS needed), qa, prod, or central
-#   Select action:      plan | apply | destroy
-# ============================================================
+# How to run: Actions -> Terraform CI/CD -> "Run workflow" button
+# Select environment: demo (no AWS needed), qa, prod, or central
+# Select action: plan | apply | destroy
+
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: 'Environment (use demo to test without AWS)'
         required: true
         type: choice
         options:
-          - demo     # ← No AWS needed - use this to test the pipeline
+          - demo
           - qa
           - prod
           - central
