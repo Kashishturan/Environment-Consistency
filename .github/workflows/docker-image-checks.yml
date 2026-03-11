@@ -1,0 +1,301 @@
+name: Docker Image Checks (Frontend)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+    paths:
+      - 'frontend/**'
+      - 'Dockerfile*'
+      - '.github/workflows/docker-image-checks.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'frontend/**'
+      - 'Dockerfile*'
+  workflow_dispatch:
+    inputs:
+      dockerfile_path:
+        description: 'Path to Dockerfile (relative to repo root)'
+        required: false
+        default: 'Dockerfile'
+      image_tag:
+        description: 'Docker image tag to use'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: read
+  security-events: write  # For uploading SARIF results to GitHub Security tab
+  pull-requests: write    # For posting comments on PRs
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/frontend
+  DOCKERFILE: ${{ github.event.inputs.dockerfile_path || 'Dockerfile' }}
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+
+jobs:
+  # -------------------------------------------------------------------------
+  # DOCKERFILE LINT (Hadolint - validates best practices)
+  # -------------------------------------------------------------------------
+  dockerfile-lint:
+    name: 'Lint Dockerfile'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile with Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ env.DOCKERFILE }}
+          format: sarif
+          output-file: hadolint-results.sarif
+          no-fail: true
+
+      - name: Upload Hadolint SARIF report
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: hadolint-results.sarif
+          category: hadolint
+
+  # -------------------------------------------------------------------------
+  # BUILD IMAGE
+  # -------------------------------------------------------------------------
+  build:
+    name: 'Build Docker Image'
+    runs-on: ubuntu-latest
+    needs: dockerfile-lint
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+      image_full: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push yet)
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: false
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save image as tarball for downstream jobs
+        run: |
+          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            -o /tmp/frontend-image.tar
+
+      - name: Upload image tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-image-${{ github.run_id }}
+          path: /tmp/frontend-image.tar
+          retention-days: 1
+
+  # -------------------------------------------------------------------------
+  # VULNERABILITY SCAN (Trivy)
+  # -------------------------------------------------------------------------
+  trivy-scan:
+    name: 'Vulnerability Scan (Trivy)'
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download image tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image-${{ github.run_id }}
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load -i /tmp/frontend-image.tar
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail; report to Security tab
+
+      - name: Upload Trivy SARIF report
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      - name: Print Trivy summary (table)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+  # -------------------------------------------------------------------------
+  # CIS BENCHMARK (Docker Scout / Dockle)
+  # -------------------------------------------------------------------------
+  dockle-scan:
+    name: 'CIS Benchmark (Dockle)'
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download image tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image-${{ github.run_id }}
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load -i /tmp/frontend-image.tar
+
+      - name: Run Dockle CIS benchmark
+        uses: goodwithtech/dockle-action@v1
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: json
+          output: dockle-results.json
+          exit-code: 0
+          exit-level: fatal
+
+      - name: Upload Dockle results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dockle-results-${{ github.run_id }}
+          path: dockle-results.json
+
+  # -------------------------------------------------------------------------
+  # IMAGE SIZE CHECK
+  # -------------------------------------------------------------------------
+  image-size-check:
+    name: 'Image Size Check'
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download image tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image-${{ github.run_id }}
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load -i /tmp/frontend-image.tar
+
+      - name: Check image size (warn if > 500MB)
+        run: |
+          SIZE=$(docker image inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            --format='{{.Size}}')
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Image size: ${SIZE_MB}MB"
+          if [ "$SIZE_MB" -gt 500 ]; then
+            echo "⚠️ Warning: Image size ${SIZE_MB}MB exceeds recommended 500MB limit!"
+            echo "::warning::Docker image size is ${SIZE_MB}MB which exceeds the 500MB recommendation."
+          else
+            echo "✅ Image size ${SIZE_MB}MB is within the 500MB limit."
+          fi
+
+  # -------------------------------------------------------------------------
+  # PUSH TO REGISTRY (only on main branch merges)
+  # -------------------------------------------------------------------------
+  push-image:
+    name: 'Push to GHCR'
+    runs-on: ubuntu-latest
+    needs: [trivy-scan, dockle-scan, image-size-check]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # -------------------------------------------------------------------------
+  # SUMMARY COMMENT on PR
+  # -------------------------------------------------------------------------
+  pr-summary:
+    name: 'Post PR Summary'
+    runs-on: ubuntu-latest
+    needs: [trivy-scan, dockle-scan, image-size-check]
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Post summary comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = `## 🐳 Docker Image Check Results
+
+            | Check | Status |
+            |-------|--------|
+            | 🔍 Dockerfile Lint (Hadolint) | ✅ Completed |
+            | 🏗️ Build | ✅ Completed |
+            | 🔒 Vulnerability Scan (Trivy) | ✅ Completed |
+            | 📋 CIS Benchmark (Dockle) | ✅ Completed |
+            | 📦 Image Size Check | ✅ Completed |
+
+            > Full results available in the **Security** tab and workflow artifacts.
+            > Image tag: \`${{ env.IMAGE_TAG }}\`
+            `;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

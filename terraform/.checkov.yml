@@ -1,0 +1,24 @@
+---
+# Checkov configuration for Terraform scanning
+# https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+
+framework:
+  - terraform
+
+# Checks to skip (acceptable risks or false positives)
+skip-check:
+  - CKV_AWS_8   # Ensure IMDSv2 is enabled (acceptable for bastion)
+  - CKV_AWS_130 # Ensure VPC subnets do not assign public IP by default (public subnets intentionally do)
+
+# Only report CRITICAL and HIGH severity
+check:
+  - HIGH
+  - CRITICAL
+
+# Output format
+output: cli
+
+# Soft fail so pipeline does not block on warnings
+soft-fail-on:
+  - LOW
+  - MEDIUM
