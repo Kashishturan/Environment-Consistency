@@ -1,0 +1,13 @@
+{
+  "name": "kong-frontend-demo",
+  "version": "1.0.0",
+  "description": "Demo frontend app for Kong Infrastructure",
+  "scripts": {
+    "start": "node server.js",
+    "build": "echo 'Static site - no build needed'",
+    "test": "echo 'No tests yet'"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

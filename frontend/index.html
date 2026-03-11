@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kong Infrastructure Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 700px;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 50px;
+      padding: 0.4rem 1.2rem;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+      backdrop-filter: blur(10px);
+    }
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p {
+      font-size: 1.15rem;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.7;
+      margin-bottom: 2rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 1.2rem;
+      backdrop-filter: blur(10px);
+      transition: transform 0.2s, background 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      background: rgba(255,255,255,0.12);
+    }
+    .card .env { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .card h3 { font-size: 1rem; font-weight: 600; }
+    .card p { font-size: 0.8rem; color: rgba(255,255,255,0.5); margin: 0; }
+    .status {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="badge">🚀 Infrastructure as Code Demo</div>
+    <h1>Kong Infra</h1>
+    <p>Multi-account AWS infrastructure managed by Terraform.<br/>
+    Deployed via GitHub Actions with OIDC authentication.</p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="env">🧪</div>
+        <h3><span class="status"></span>QA</h3>
+        <p>10.1.0.0/16<br/>us-east-1</p>
+      </div>
+      <div class="card">
+        <div class="env">⚡</div>
+        <h3><span class="status"></span>Prod</h3>
+        <p>10.2.0.0/16<br/>us-east-1</p>
+      </div>
+      <div class="card">
+        <div class="env">🏛️</div>
+        <h3><span class="status"></span>Central</h3>
+        <p>10.0.0.0/16<br/>us-east-1</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
