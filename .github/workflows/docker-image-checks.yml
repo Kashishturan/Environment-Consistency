@@ -223,7 +223,7 @@ jobs:
         run: docker load -i /tmp/frontend-image.tar
 
       - name: Run Dockle
-        uses: goodwithtech/dockle-action@v1
+        uses: goodwithtech/dockle-action@main
         with:
           image: ghcr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           format: json
