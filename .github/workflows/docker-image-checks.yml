@@ -301,7 +301,7 @@ jobs:
 
       - name: Set ECR image URI
         run: |
-          ECR_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_NAME }}"
+          ECR_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}"
           echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
