@@ -41,7 +41,7 @@ permissions:
 env:
   DOCKERFILE: ${{ github.event.inputs.dockerfile_path || 'Dockerfile' }}
   IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
-  AWS_REGION: us-east-1
+  AWS_REGION: eu-north-1
   ECR_REPO_NAME: kong-frontend   # Change this to your ECR repository name
 
 jobs:
